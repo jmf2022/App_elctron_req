@@ -1,0 +1,109 @@
+🔹 Ajuste no src/main/index.ts
+import { app, BrowserWindow, ipcMain } from "electron";
+import path from "path";
+
+let mainWindow2: BrowserWindow | null = null;
+let janelaReq: BrowserWindow | null = null;
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1000,
+    height: 700,
+    webPreferences: {
+      preload: path.join(__dirname, "../preload/index.js"),
+    },
+  });
+
+  mainWindow2.loadFile(path.join(__dirname, "../renderer/index.html"));
+}
+
+app.on("ready", createWindow);
+
+// 🔹 Função para criar a nova janela (janelaReq)
+function createJanelaReq(url: string) {
+  // evita abrir várias vezes
+  if (janelaReq !== null) {
+    janelaReq.focus();
+    return;
+  }
+
+  janelaReq = new BrowserWindow({
+    width: 800,
+    height: 600,
+    title: "Janela Req", // <<< nome da janela
+    webPreferences: {
+      preload: path.join(__dirname, "../preload/index.js"),
+    },
+  });
+
+  janelaReq.loadFile(path.join(__dirname, "../renderer/index.html"));
+
+  // mandar a rota depois que carregar
+  janelaReq.webContents.on("did-finish-load", () => {
+    janelaReq?.webContents.send("navigate-to", url);
+  });
+
+  // quando fechar, liberar referência
+  janelaReq.on("closed", () => {
+    janelaReq = null;
+  });
+}
+
+// 🔹 IPC para abrir a janelaReq
+ipcMain.handle("abrir-janela-req", async (event, url: string) => {
+  createJanelaReq(url);
+});
+
+
+
+
+
+
+
+
+🔹 Ajuste no src/preload/index.ts
+import { contextBridge, ipcRenderer } from "electron";
+
+contextBridge.exposeInMainWorld("electronAPI", {
+  abrirJanelaReq: (url: string) => ipcRenderer.invoke("abrir-janela-req", url),
+});
+
+
+
+
+
+
+
+
+
+E no index.d.ts:
+
+export interface ElectronAPI {
+  abrirJanelaReq: (url: string) => void;
+}
+
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI;
+  }
+}
+
+
+
+
+
+
+
+
+🔹 Uso no React (renderer)
+const abrirJanelaReq = () => {
+  window.electronAPI.abrirJanelaReq("/detail?id=123");
+};
+
+export default function BotaoAbrir() {
+  return (
+    <button onClick={abrirJanelaReq}>
+      Abrir Janela Req
+    </button>
+  );
+}

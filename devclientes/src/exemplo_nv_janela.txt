@@ -1,0 +1,182 @@
+Perfeito! Com base no seu `main.ts`, você está usando **Electron + React + electron-router-dom**.
+
+Como o seu `main.ts` define uma janela principal, **agora vamos criar uma funcionalidade que permita abrir uma nova janela do Electron a partir de um botão no React**.
+
+---
+
+### ✅ Objetivo:
+
+Criar um botão no React que, quando clicado, **abre uma nova `BrowserWindow`** do Electron, por exemplo, com a rota `/create`.
+
+---
+
+### 🧩 Etapas:
+
+#### 1. **Criar um canal IPC entre o React (Renderer) e Electron (Main)**
+
+---
+
+### 🛠️ 1. `main.ts` – Crie um handler IPC para abrir nova janela
+
+Adicione isso **dentro do `app.whenReady().then(...)`**, depois de `ipcMain.on('ping', ...)`:
+
+```ts
+ipcMain.handle('open-new-window', async (_, route: string) => {
+  const childWindow = new BrowserWindow({
+    width: 600,
+    height: 400,
+    autoHideMenuBar: true,
+    backgroundColor: '#030712',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false
+    }
+  });
+
+  const childRoute = is.dev && process.env['ELECTRON_RENDERER_URL']
+    ? createURLRoute(process.env['ELECTRON_RENDERER_URL']!, route)
+    : createFileRoute(join(__dirname, '../renderer/index.html'), route);
+
+  if (is.dev) {
+    await childWindow.loadURL(childRoute);
+  } else {
+    await childWindow.loadFile(...childRoute);
+  }
+});
+```
+
+---
+
+### 🧠 Explicando:
+
+* `ipcMain.handle('open-new-window', ...)`: espera receber o nome da rota (`"create"`, `"about"`, etc).
+* Cria uma nova janela com o conteúdo da rota passada.
+* Usa `createURLRoute` ou `createFileRoute` conforme o ambiente (dev ou produção).
+
+---
+
+### 🧱 2. `preload/index.ts` – Exponha a função para o React
+
+No seu `preload/index.ts`, adicione:
+
+```ts
+import { contextBridge, ipcRenderer } from 'electron'
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  openNewWindow: (route: string) => ipcRenderer.invoke('open-new-window', route)
+})
+```
+
+---
+
+### 🌍 3. Tipagem global – (opcional, mas recomendado)
+
+Crie ou edite o arquivo `src/types/global.d.ts`:
+
+```ts
+export {}
+
+declare global {
+  interface Window {
+    electronAPI: {
+      openNewWindow: (route: string) => void
+    }
+  }
+}
+```
+
+---
+
+### 🖱️ 4. Criar botão React que abre nova janela
+
+Agora crie um componente ou adicione dentro da `Home`:
+
+```tsx
+export function OpenElectronWindowButton() {
+  const handleClick = () => {
+    window.electronAPI.openNewWindow('create') // rota da nova janela
+  }
+
+  return (
+    <button 
+      onClick={handleClick}
+      className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+    >
+      Abrir nova janela (/create)
+    </button>
+  )
+}
+```
+
+E dentro do seu componente `Home`, coloque:
+
+```tsx
+import { OpenElectronWindowButton } from './OpenElectronWindowButton'
+
+export function Home() {
+  return (
+    <div>
+      <h1>Página HOME!!!</h1>
+      <h3>TESTEEEEEEE</h3>
+      <OpenElectronWindowButton />
+    </div>
+  )
+}
+```
+
+---
+
+### ✅ Pronto!
+
+Agora, ao clicar no botão, o Electron cria uma nova `BrowserWindow` e carrega a rota `/create`.
+
+---
+
+Se quiser que a janela tenha comportamento específico (sem borda, redimensionável, etc.), posso ajudar com isso também.
+
+Quer customizar mais essa janela?
+
+
+
+==========Segundo exemplo.======================================
+
+No seu componente React, adicione um botão:
+
+
+<button onClick={handleOpenWindow}>Abrir Nova Janela</button>
+
+
+Crie a função handleOpenWindow:
+
+
+const handleOpenWindow = () => {
+  window.electron.ipcRenderer.send('open-new-window');
+};
+
+
+No arquivo main.js, adicione um listener para o evento 'open-new-window':
+
+
+ipcMain.on('open-new-window', async (event) => {
+  const newWindow = new BrowserWindow({ width: 800, height: 600 });
+  newWindow.loadURL('sua-url-aqui');
+
+  try {
+    const response = await fetch('https://api.exemplo.com/dados');
+    const data = await response.json();
+    newWindow.webContents.send('data-received', data);
+  } catch (error) {
+    console.error('Erro na requisição:', error);
+  }
+});
+
+
+Na nova janela, adicione um listener para receber os dados:
+
+
+useEffect(() => {
+  window.electron.ipcRenderer.on('data-received', (data) => {
+    // Use os dados recebidos aqui
+    console.log(data);
+  });
+}, []);
